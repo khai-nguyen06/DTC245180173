@@ -1,0 +1,19 @@
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+
+scrape_configs:
+  # 1. Giám sát chính máy chủ Prometheus
+  - job_name: 'prometheus'
+    static_configs:
+      - targets: ['localhost:9090']
+
+  # 2. Giám sát phần cứng và tài nguyên các container qua cAdvisor
+  - job_name: 'cadvisor'
+    static_configs:
+      - targets: ['cadvisor:8080']
+
+  # 3. Giám sát cơ sở dữ liệu MySQL qua mysqld-exporter
+  - job_name: 'mysql'
+    static_configs:
+      - targets: ['mysqld_exporter:9104']

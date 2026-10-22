@@ -59,11 +59,76 @@ services:
     depends_on:
       - recipe_app
 
+  # ---------------- MONITORING SERVICES ----------------
+  mysqld_exporter:
+    image: prom/mysqld-exporter:latest
+    container_name: recipe_mysql_exporter
+    restart: always
+    volumes:
+      - ./monitoring/prometheus/.my.cnf:/.my.cnf:ro
+    command:
+      - "--config.my-cnf=/.my.cnf"
+    networks:
+      - backend_net
+      - monitoring_net
+    depends_on:
+      - mysql_db
+
+  cadvisor:
+    image: gcr.io/cadvisor/cadvisor:latest
+    container_name: recipe_cadvisor
+    restart: always
+    privileged: true
+    volumes:
+      - /:/rootfs:ro
+      - /var/run:/var/run:ro
+      - /sys:/sys:ro
+      - /var/lib/docker/:/var/lib/docker:ro
+      - /dev/disk/:/dev/disk:ro
+    networks:
+      - monitoring_net
+
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: recipe_prometheus
+    restart: always
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./monitoring/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus_data:/prometheus
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+    networks:
+      - monitoring_net
+
+  grafana:
+    image: grafana/grafana:latest
+    container_name: recipe_grafana
+    restart: always
+    ports:
+      - "3000:3000"
+    environment:
+      - GF_SECURITY_ADMIN_USER=admin
+      - GF_SECURITY_ADMIN_PASSWORD=AdminSecurePass2026!
+    volumes:
+      - ./monitoring/grafana/provisioning:/etc/grafana/provisioning:ro
+      - grafana_data:/var/lib/grafana
+    networks:
+      - monitoring_net
+    depends_on:
+      - prometheus
+
 networks:
   frontend_net:
     driver: bridge
   backend_net:
     driver: bridge
+  monitoring_net:
+    driver: bridge
 
 volumes:
   mysql_data:
+  prometheus_data:
+  grafana_data:
