@@ -1,0 +1,5 @@
+[client]
+user=TEN_USER_MYSQL
+password=DIEN_MAT_KHAU
+host=mysql_db
+port=3306

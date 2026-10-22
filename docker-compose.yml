@@ -2,12 +2,14 @@ services:
   mysql_db:
     image: mysql:8.0
     container_name: recipe_mysql
+    security_opt:
+      - no-new-privileges:true
     restart: always
     environment:
-      MYSQL_ROOT_PASSWORD: RootSecurePass2026!
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD}
       MYSQL_DATABASE: recipe_db
       MYSQL_USER: recipe_user
-      MYSQL_PASSWORD: RecipeSecurePass2026!
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD}
     volumes:
       - mysql_data:/var/lib/mysql
     networks:
@@ -21,7 +23,6 @@ services:
       - "8080:80"
     environment:
       PMA_HOST: mysql_db
-      MYSQL_ROOT_PASSWORD: RootSecurePass2026!
     networks:
       - backend_net
     depends_on:
@@ -32,12 +33,14 @@ services:
       context: ./app
       dockerfile: Dockerfile
     container_name: recipe_web
+    security_opt:
+      - no-new-privileges:true
     restart: always
     environment:
       DB_HOST: mysql_db
       DB_NAME: recipe_db
       DB_USER: recipe_user
-      DB_PASS: RecipeSecurePass2026!
+      DB_PASS: ${MYSQL_PASSWORD}
     networks:
       - frontend_net
       - backend_net
@@ -47,6 +50,8 @@ services:
   nginx_proxy:
     image: nginx:alpine
     container_name: recipe_nginx
+    security_opt:
+      - no-new-privileges:true
     restart: always
     ports:
       - "80:80"
@@ -56,10 +61,10 @@ services:
       - ./nginx/ssl:/etc/nginx/ssl:ro
     networks:
       - frontend_net
+      - monitoring_net
     depends_on:
       - recipe_app
 
-  # ---------------- MONITORING SERVICES ----------------
   mysqld_exporter:
     image: prom/mysqld-exporter:latest
     container_name: recipe_mysql_exporter
@@ -78,7 +83,8 @@ services:
     image: gcr.io/cadvisor/cadvisor:latest
     container_name: recipe_cadvisor
     restart: always
-    privileged: true
+    devices:
+      - /dev/kmsg
     volumes:
       - /:/rootfs:ro
       - /var/run:/var/run:ro
@@ -91,6 +97,8 @@ services:
   prometheus:
     image: prom/prometheus:latest
     container_name: recipe_prometheus
+    security_opt:
+      - no-new-privileges:true
     restart: always
     ports:
       - "9090:9090"
@@ -106,20 +114,55 @@ services:
   grafana:
     image: grafana/grafana:latest
     container_name: recipe_grafana
+    security_opt:
+      - no-new-privileges:true
     restart: always
     ports:
       - "3000:3000"
     environment:
       - GF_SECURITY_ADMIN_USER=admin
-      - GF_SECURITY_ADMIN_PASSWORD=AdminSecurePass2026!
+      - GF_SECURITY_ADMIN_PASSWORD=${GRAFANA_ADMIN_PASSWORD}
     volumes:
       - ./monitoring/grafana/provisioning:/etc/grafana/provisioning:ro
       - grafana_data:/var/lib/grafana
     networks:
       - monitoring_net
+      - logging_net
     depends_on:
       - prometheus
+      - loki
 
+  loki:
+    image: grafana/loki:latest
+    container_name: recipe_loki
+    restart: always
+    volumes:
+      - ./logging/loki/loki-config.yml:/etc/loki/local-config.yaml:ro
+      - loki_data:/loki
+    networks:
+      - logging_net
+
+  promtail:
+    image: grafana/promtail:latest
+    container_name: recipe_promtail
+    restart: always
+    volumes:
+      - ./logging/promtail/promtail-config.yml:/etc/promtail/config.yml:ro
+      - /var/lib/docker/containers:/var/lib/docker/containers:ro
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    networks:
+      - logging_net
+    depends_on:
+      - loki
+  nginx_exporter:
+    image: nginx/nginx-prometheus-exporter:1.3.0
+    container_name: recipe_nginx_exporter
+    restart: always
+    command: ["--nginx.scrape-uri=http://nginx_proxy:8081/stub_status"]
+    networks:
+      - monitoring_net
+    depends_on:
+       - nginx_proxy
 networks:
   frontend_net:
     driver: bridge
@@ -127,8 +170,11 @@ networks:
     driver: bridge
   monitoring_net:
     driver: bridge
+  logging_net:
+    driver: bridge
 
 volumes:
   mysql_data:
   prometheus_data:
   grafana_data:
+  loki_data:

@@ -2,7 +2,7 @@
 $host = getenv('DB_HOST') ?: 'mysql_db';
 $db   = getenv('DB_NAME') ?: 'recipe_db';
 $user = getenv('DB_USER') ?: 'recipe_user';
-$pass = getenv('DB_PASS') ?: 'RecipeSecurePass2026!';
+$pass = getenv('DB_PASS');
 
 $conn = new mysqli($host, $user, $pass, $db);
 if ($conn->connect_error) {
